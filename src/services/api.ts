@@ -2,6 +2,7 @@ import { db } from '../firebase-config';
 import { collection, getDocs, doc, setDoc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { Product, GoldPrice } from '../types';
 import { PRODUCTS as MOCK_PRODUCTS, MOCK_PRICES } from '../constants';
+const isBrowser = typeof window !== 'undefined';
 
 const COLLECTION_PRODUCTS = 'products';
 const COLLECTION_SETTINGS = 'settings';
@@ -19,11 +20,13 @@ export const api = {
   
   async getProducts(): Promise<Product[]> {
     if (!isDbReady()) {
+       if (isBrowser) {
       // Fallback to LocalStorage
       const local = localStorage.getItem('babil_products');
       return local ? JSON.parse(local) : MOCK_PRODUCTS;
     }
-
+    return MOCK_PRODUCTS;
+  }    
     try {
       const querySnapshot = await getDocs(collection(db, COLLECTION_PRODUCTS));
       if (querySnapshot.empty) {
@@ -39,20 +42,20 @@ export const api = {
   },
 
   async saveProduct(product: Product): Promise<void> {
-    if (!isDbReady()) {
-      // LocalStorage Fallback
-      const current = await api.getProducts();
-      const index = current.findIndex(p => p.id === product.id);
-      let updated;
-      if (index >= 0) {
-        updated = [...current];
-        updated[index] = product;
-      } else {
-        updated = [...current, product];
-      }
-      localStorage.setItem('babil_products', JSON.stringify(updated));
-      return;
-    }
+   if (!isDbReady()) {
+     if (isBrowser) {
+       const current = await api.getProducts();
+       const index = current.findIndex(p => p.id === product.id);
+       const updated =
+         index >= 0
+           ? current.map(p => (p.id === product.id ? product : p))
+           : [...current, product];
+
+       localStorage.setItem('babil_products', JSON.stringify(updated));
+     }
+     return;
+   }
+
 
     // Firebase Save
     try {
@@ -76,10 +79,12 @@ export const api = {
 
   async deleteProduct(id: string): Promise<void> {
     if (!isDbReady()) {
+      if (isBrowser) {
        const current = await api.getProducts();
        const updated = current.filter(p => p.id !== id);
        localStorage.setItem('babil_products', JSON.stringify(updated));
-       return;
+      } 
+      return;
     }
 
     try {
@@ -97,10 +102,12 @@ export const api = {
 
   async getPrices(): Promise<GoldPrice[]> {
     if (!isDbReady()) {
+      if (isBrowser) {
       const local = localStorage.getItem('babil_prices');
       return local ? JSON.parse(local) : MOCK_PRICES;
     }
-
+    return MOCK_PRICES;
+   }
     try {
       const docRef = doc(db, COLLECTION_SETTINGS, DOC_PRICES);
       const docSnap = await getDoc(docRef);
@@ -119,10 +126,13 @@ export const api = {
 
   async updatePrices(prices: GoldPrice[]): Promise<void> {
     if (!isDbReady()) {
+      if (isBrowser) {
       localStorage.setItem('babil_prices', JSON.stringify(prices));
       return;
     }
-
+      return;
+   }
+    
     try {
       await setDoc(doc(db, COLLECTION_SETTINGS, DOC_PRICES), { values: prices });
     } catch (error) {
